@@ -1,0 +1,16 @@
+# --- Обязательно (без этого программа не работает) ---
+requests>=2.31
+beautifulsoup4>=4.12
+
+# --- Желательно, но не обязательно ---
+# lxml>=4.9        # ускоряет разбор HTML в 2-3 раза; без него используется html.parser
+# PyYAML>=6.0      # без него работает встроенный мини-парсер YAML (pricefinder/yamlite.py)
+#                    — именно поэтому на Android PyYAML можно не ставить
+# openpyxl>=3.1    # только для отчётов --xlsx
+
+# --- Только для ПК: рендер сайтов, рисующих цены через JavaScript ---
+# playwright>=1.44   # после установки: playwright install chromium
+#                    # на Android не поддерживается — см. android/ANDROID.md
+
+# --- Только для графического интерфейса (python price_finder.py gui) ---
+# kivy>=2.3        # на Android: bash android/install_gui_termux.sh

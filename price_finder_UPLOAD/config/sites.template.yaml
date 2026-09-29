@@ -1,0 +1,337 @@
+# =====================================================================
+#  pricefinder — конфигурация источников цен
+#  Файл: config/sites.yaml
+#
+#  Программа работает с ЛЮБЫМ сайтом. Стратегии извлечения данных
+#  (пробуются по очереди, пока не появится результат):
+#    1) css       — селекторы из блока fields (точный контроль);
+#    2) jsonld    — микроразметка schema.org в <script type="application/ld+json">;
+#    3) microdata — разметка itemprop;
+#    4) meta      — og:/product: мета-теги (страница одного товара).
+#  Стратегии 2–4 работают «из коробки» на большинстве интернет-магазинов,
+#  поэтому для нового сайта часто достаточно указать search_url.
+# =====================================================================
+
+settings:
+  timeout: 20            # таймаут запроса, сек
+  retries: 3             # повторы при 403/429/сетевых ошибках
+  delay: 1.0             # вежливая пауза между запросами, сек
+  respect_robots: true   # учитывать robots.txt
+  workers: 4             # сколько сайтов опрашивать параллельно
+  # user_agent: "Mozilla/5.0 ..."
+  # proxy: "http://127.0.0.1:8080"
+
+  currencies:
+    base: RUB            # базовая валюта для сравнения цен
+    rates:               # сколько базовой валюты за 1 единицу
+      USD: 92.0
+      EUR: 100.0
+      CNY: 12.7
+      KZT: 0.2
+      BYN: 28.0
+      UAH: 2.3
+      GBP: 117.0
+      TRY: 2.8
+      GEL: 34.0
+      AMD: 0.23
+      AZN: 54.0
+    # Живые курсы: python price_finder.py update-rates --write-config
+
+  # --- уведомления (для команды watch) ---
+  notify_enabled: true
+  telegram:
+    bot_token: ""        # токен от @BotFather
+    chat_id: ""          # узнать: https://api.telegram.org/bot<TOKEN>/getUpdates
+  smtp:
+    host: ""             # например smtp.gmail.com / smtp.yandex.ru
+    port: 587            # 465 + ssl: true — для SMTP_SSL
+    ssl: false
+    user: ""
+    password: ""         # для Gmail нужен «пароль приложения», не основной
+    sender: ""
+    to: ""
+
+sites:
+
+  # -------------------------------------------------------------------
+  # Демо-магазин: локальный сервер для проверки без интернета.
+  # Запуск:  python tests/demo_server.py --port 8765
+  #          python price_finder.py search "ноутбук" --sites demo
+  # -------------------------------------------------------------------
+  - id: demo
+    name: ДемоМаркет (локально)
+    enabled: true
+    search_url: "http://127.0.0.1:8765/search?q={query}"
+    product_selector: "div.product-card"
+    fields:
+      title: ".product-card__title"
+      price: ".product-card__price"
+      old_price: ".product-card__price-old"
+      url: "a.product-card__link"          # автоматически возьмёт href
+      image: "img.product-card__img"        # автоматически возьмёт src
+      seller: ".product-card__seller"
+      rating: ".product-card__rating"
+      availability: ".product-card__stock"
+    currency: RUB
+    min_price: 1
+    notes: "Работает без сети: python price_finder.py serve-demo"
+
+  # -------------------------------------------------------------------
+  # Второй демо-режим: цены лежат в JSON внутри <script> (как у SPA-сайтов)
+  # -------------------------------------------------------------------
+  - id: demo2
+    name: ДемоМаркет-2 (дешевле на 8%)
+    enabled: true
+    # селекторов нет вовсе — карточки находятся автоматически по JSON-LD
+    search_url: "http://127.0.0.1:8765/search?q={query}&mult=0.92"
+    currency: RUB
+    min_price: 1
+    notes: "Демо площадки без CSS-селекторов: работает авто-стратегия jsonld"
+
+  - id: demo-js
+    name: ДемоМаркет JS-выдача
+    enabled: false
+    search_url: "http://127.0.0.1:8765/search2?q={query}"
+    # селекторов нет — сработает авто-парсинг JSON-LD из этой же страницы
+    currency: RUB
+    notes: "Проверка авто-стратегии jsonld без селекторов"
+
+  # -------------------------------------------------------------------
+  # ШАБЛОН «любой сайт». Скопируйте блок, заполните свои значения,
+  # поставьте enabled: true. Как узнать селекторы: откройте сайт в
+  # браузере → F12 → выберите карточку товара → скопируйте CSS-селектор.
+  # -------------------------------------------------------------------
+  - id: my-shop
+    name: Мой магазин (шаблон)
+    enabled: false
+    # {query} подставится вместо поискового запроса, {page} — вместо номера страницы
+    search_url: "https://example.com/search?q={query}&sort=price_asc&page={page}"
+    product_selector: "div.product-card, li.catalog__item"   # контейнер карточки
+    fields:
+      # Допустимые формы значений:
+      #   ".title"                — текст первого подходящего элемента
+      #   ["h3.title", ".name"]   — список: берётся первый непустой
+      #   "attr:data-price"       — значение атрибута у любого вложенного элемента
+      #   "regex:(\\d[\\d\\s]{2,})\\s*₽" — регулярка по тексту контейнера
+      #   "json:window.__STATE__" — JSON из <script> (для SPA)
+      title: ".product-card__title"
+      price: ["meta[itemprop=price]", ".price", "attr:data-price"]
+      old_price: ".price--old"
+      url: "a.product-card__link"
+      image: "img.product-card__img"
+      seller: ".seller"
+      rating: ".rating"
+      reviews: ".reviews-count"
+      availability: ".stock"
+      currency: "attr:data-currency"     # если валюта задаётся атрибутом
+    page_param: page
+    start_page: 1
+    max_pages: 2           # сколько страниц выдачи обходить
+    delay: 1.5             # пауза между страницами
+    currency: RUB          # валюта сайта, если на странице её нет
+    min_price: 10          # отсечь «0 ₽» и стоимость доставки
+    max_price: 10000000
+    exclude_keywords: ["б/у", "уценённый", "витрина", "аренда", "запчасть"]
+    include_keywords: []   # если непусто — оставлять только товары с этими словами
+    js_render: false       # true, если контент подгружается JavaScript (нужен Playwright)
+    render_wait: 2.5
+    wait_selector: ""      # ждать появления этого селектора (например ".product-card")
+    headers:
+      # Referer: "https://example.com/"
+      # Accept-Language: "ru-RU,ru;q=0.9"
+    cookies: {}
+    notes: "Шаблон: замените example.com и селекторы на свои"
+
+  # -------------------------------------------------------------------
+  # РЕАЛЬНЫЙ сайт, проверенный на живом HTML (селекторы сняты с верстки).
+  # Отдаёт страницу без JavaScript — браузер не нужен.
+  #   python price_finder.py search "гарри поттер" --sites bookvoed
+  # -------------------------------------------------------------------
+  - id: bookvoed
+    name: Буквоед
+    enabled: false
+    search_url: "https://www.bookvoed.ru/search?q={query}"
+    product_selector: "div.product-card"
+    fields:
+      title: "a.product-description__link"
+      price: "span.price-info__price"          # текущая цена (со скидкой — первая)
+      old_price: "max:span.price-info__old-price"   # зачёркнутая = максимальная
+      url: "a.product-card__image-link"
+      image: "img.product-card__picture"
+      seller: "a[href^='/author/']"            # автор книги
+    currency: RUB
+    min_price: 10
+    max_pages: 2
+    delay: 1.5
+    exclude_keywords: ["электронная книга", "аудиокнига", "подписка"]
+    notes: "Проверено: ~60 карточек на странице, HTML без JS. Не злоупотребляйте частотой запросов."
+
+  - id: chitai-gorod
+    name: Читай-город
+    enabled: false
+    search_url: "https://www.chitai-gorod.ru/search?query={query}"
+    currency: RUB
+    js_render: true            # выдача рисуется на клиенте (в HTML только «скелеты»)
+    wait_selector: "[class*='product-card__']"
+    render_wait: 5.0
+    delay: 2.0
+    notes: "Нужен Playwright: pip install playwright && playwright install chromium"
+
+  # -------------------------------------------------------------------
+  # Реальные площадки. Включены только «универсальные» настройки:
+  # карточки ищутся автоматически через JSON-LD/microdata/meta.
+  # Многие крупные маркетплейсы отдают ботам заглушку или требуют JS —
+  # тогда включите js_render: true и/или прокси. Селекторы в примерах
+  # даны как ориентир и могут устареть: проверяйте командой
+  #   python price_finder.py test-site <id> "запрос" --dump-html page.html
+  # -------------------------------------------------------------------
+  - id: ozon
+    name: Ozon
+    enabled: false
+    search_url: "https://www.ozon.ru/search/?text={query}&sorting=price"
+    product_selector: 'div[data-widget="searchResultsV2"] > div > div'
+    fields:
+      title: "a > span"
+      price: "span.tsHeadline500Medium"
+      url: "a"
+    currency: RUB
+    js_render: true
+    wait_selector: 'div[data-widget="searchResultsV2"]'
+    render_wait: 4.0
+    max_pages: 1
+    delay: 3.0
+    notes: "Активная антибот-защита: часто нужен Playwright + прокси/cookies. Проверьте через test-site."
+
+  - id: wildberries
+    name: Wildberries
+    enabled: false
+    search_url: "https://www.wildberries.ru/catalog/0/search.aspx?search={query}&sort=cheap"
+    product_selector: "article.product-card"
+    fields:
+      title: ".product-card__name, .goods-name"
+      price: ["ins.price", ".price", ".product-card__price"]
+      old_price: "del.price"
+      url: "a.product-card__link"
+      image: "img.product-card__img"
+      seller: ".product-card__supplier"
+      rating: ".address-rate-mini"
+    currency: RUB
+    js_render: true
+    render_wait: 4.0
+    delay: 3.0
+    notes: "Карточки грузятся через JS. Альтернатива — открытое API: search.wildberries.ru (см. README)."
+
+  - id: yandex-market
+    name: Яндекс.Маркет
+    enabled: false
+    search_url: "https://market.yandex.ru/search?text={query}"
+    product_selector: "article[data-auto='searchOrganic'] , div[data-auto='searchOrganic']"
+    fields:
+      title: "a[data-auto='snippet__title']"
+      price: "span[data-auto='main-price']"
+      url: "a[data-auto='snippet__title']"
+    currency: RUB
+    js_render: true
+    render_wait: 4.0
+    delay: 3.0
+    notes: "Сильная антибот-защита (капча). Реалистично — через Playwright с реальными cookies."
+
+  - id: aliexpress
+    name: AliExpress
+    enabled: false
+    search_url: "https://aliexpress.ru/wholesale?SearchText={query}&SortType=price_asc"
+    product_selector: "div[class*='search-item-card'], div[class*='SearchProductFeed'] a"
+    fields:
+      title: "h3, [class*='title']"
+      price: "[class*='multi--price-sale'], [class*='price']"
+      url: "a[href*='/item/']"
+      image: "img"
+      rating: "[class*='trade--rating']"
+    currency: RUB
+    js_render: true
+    render_wait: 4.0
+    delay: 3.0
+    notes: "Есть JSON-LD с Product/Offer — авто-стратегия часто срабатывает без селекторов."
+
+  - id: dns
+    name: DNS-Shop
+    enabled: false
+    search_url: "https://www.dns-shop.ru/search/?q={query}"
+    product_selector: "div.catalog-product"
+    fields:
+      title: "a.catalog-product__name"
+      price: "div.product-buy__price"
+      url: "a.catalog-product__name"
+      image: "img.catalog-product__img"
+      rating: "div.catalog-product__rating"
+    currency: RUB
+    min_price: 10
+    js_render: false
+    delay: 2.0
+    notes: "Обычно отдаёт HTML без браузера, но проверяйте: возможна каппча при частых запросах."
+
+  - id: citilink
+    name: Ситилинк
+    enabled: false
+    search_url: "https://www.citilink.ru/search/?text={query}&sorting=price_asc"
+    product_selector: "div.product_data__info, div[data-meta-type='product-card']"
+    fields:
+      title: "a.product_data__name"
+      price: "span.product_data__price"
+      url: "a.product_data__name"
+    currency: RUB
+    min_price: 10
+    js_render: true
+    delay: 2.5
+    notes: "Проверьте селекторы через test-site — вёрстка меняется."
+
+  - id: avito
+    name: Авито
+    enabled: false
+    search_url: "https://www.avito.ru/rossiya?q={query}&s=price_asc"
+    product_selector: "div[data-marker='item'], div.item-description"
+    fields:
+      title: "h3, [itemprop='name']"
+      price: "[itemprop='price'], [data-marker='item-price']"
+      url: "a[itemprop='url'], a[href*='/avito']"
+    currency: RUB
+    min_price: 100
+    exclude_keywords: ["аренда", "обмен", "услуги"]
+    js_render: true
+    delay: 3.0
+    notes: "Б/у-площадка: цены несопоставимы по состоянию товара, включайте осознанно."
+
+  - id: ebay
+    name: eBay
+    enabled: false
+    search_url: "https://www.ebay.com/sch/i.html?_nkw={query}&_sop=15"   # _sop=15 — сортировка по цене+доставке
+    product_selector: "li.s-item, div.s-item__wrapper"
+    fields:
+      title: ".s-item__title, div.s-item__title"
+      price: ".s-item__price"
+      url: "a.s-item__link"
+      image: ".s-item__image-wrapper img"
+      seller: ".s-item__seller-info-text"
+      rating: ".s-item__ratings"
+    currency: USD
+    min_price: 1
+    exclude_keywords: ["shop on ebay", "for parts"]
+    notes: "_sop=15 сортирует по цене; валюта USD — пересчитывается по курсу из settings.currencies."
+
+  - id: amazon
+    name: Amazon
+    enabled: false
+    search_url: "https://www.amazon.com/s?k={query}&s=price-asc-rank"
+    product_selector: "div[data-component-type='s-search-result']"
+    fields:
+      title: "h2 span"
+      price: "span.a-price > span.a-offscreen"
+      old_price: "span.a-price[data-a-strike='true'] span.a-offscreen"
+      url: "a.a-link-normal.s-no-outline"
+      image: "img.s-image"
+      rating: "span.a-icon-alt"
+      reviews: "span.a-size-base.s-underline-text"
+    currency: USD
+    min_price: 1
+    delay: 3.0
+    notes: "Агрессивная антибот-защита: как минимум Playwright + прокси."

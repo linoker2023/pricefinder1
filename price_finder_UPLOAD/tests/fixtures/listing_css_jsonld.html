@@ -1,0 +1,79 @@
+<!-- Пример реальной верстки листинга: карточки с классами + JSON-LD ItemList.
+     Используется в тестах (tests/test_all.py) и как образец для своих сайтов. -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Каталог — поиск: наушники</title>
+  <meta property="og:title" content="Наушники — каталог">
+</head>
+<body>
+<div class="catalog">
+
+  <div class="product-card" data-id="101">
+    <a class="product-card__link" href="/product/101?utm_source=news">
+      <img class="product-card__img" src="/img/101.jpg" alt="Наушники Sony WH-1000XM5">
+      <div class="product-card__title">Наушники Sony WH-1000XM5 чёрные</div>
+    </a>
+    <div class="product-card__price-old">33 990 ₽</div>
+    <div class="product-card__price">26 990 ₽</div>
+    <div class="product-card__seller">Sony Store</div>
+    <div class="product-card__rating" data-value="4.8">4.8 (492)</div>
+    <div class="product-card__stock">В наличии</div>
+  </div>
+
+  <div class="product-card" data-id="102">
+    <a class="product-card__link" href="https://shop.example/product/102">
+      <img class="product-card__img" data-src="/img/102.jpg" alt="AirPods Pro 2">
+      <div class="product-card__title">Наушники Apple AirPods Pro 2 USB-C</div>
+    </a>
+    <div class="product-card__price">18 990 ₽</div>
+    <div class="product-card__seller">iShop</div>
+    <div class="product-card__stock">Нет в наличии</div>
+  </div>
+
+</div>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "item": {
+        "@type": "Product",
+        "name": "Наушники Sony WH-1000XM5 чёрные",
+        "image": "/img/101.jpg",
+        "url": "/product/101",
+        "aggregateRating": {"@type": "AggregateRating", "ratingValue": 4.8, "reviewCount": 492},
+        "offers": {
+          "@type": "Offer",
+          "priceCurrency": "RUB",
+          "price": 26990,
+          "availability": "https://schema.org/InStock",
+          "seller": {"@type": "Organization", "name": "Sony Store"}
+        }
+      }
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "item": {
+        "@type": "Product",
+        "name": "Наушники Apple AirPods Pro 2 USB-C",
+        "offers": {
+          "@type": "AggregateOffer",
+          "lowPrice": "18990",
+          "highPrice": "22990",
+          "priceCurrency": "RUB",
+          "availability": "https://schema.org/OutOfStock"
+        }
+      }
+    }
+  ]
+}
+</script>
+</body>
+</html>
